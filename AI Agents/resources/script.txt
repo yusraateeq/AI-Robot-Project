@@ -1,0 +1,12 @@
+[GREETING]
+Hello, this is [AGENT_NAME]. Actually, I contacted you earlier about the cashback benefits associated with Medicare. Do you remember that?
+
+[FOLLOW_UP]
+I’m following up today because, according to our records, there are Medicare cashback benefits available for 2026 that may apply to you in addition to your current coverage.
+
+[QUALIFICATION_QUESTION]
+Do you currently have Medicare Part A and Part B?
+
+[TRANSFER_PROCESS]
+(If YES): Perfect. Based on your Medicare coverage, there are updated benefits available for 2026. I’m connecting you now with a benefits advisor who will explain exactly what benefits you may qualify for. Please hold for just one moment.
+(If NO/OTHER): I understand. Thank you for your time, have a great day.

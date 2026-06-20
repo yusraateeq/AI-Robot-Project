@@ -1,0 +1,25 @@
+# AI Agents — Pure-Python Dependencies (zero compilation, works on Python 3.14+)
+# All packages are pure Python — no C extensions, no Rust, no MSVC Build Tools needed.
+
+# Framework & Server
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-socketio>=5.11.0
+
+# Auth
+pyjwt>=2.8.0
+
+# Database (aiosqlite is pure Python — no greenlet, no asyncpg)
+aiosqlite>=0.20.0
+
+# AI / ML
+openai>=1.45.0
+elevenlabs>=1.10.0
+
+# Browser Automation
+playwright>=1.46.0
+
+# Utilities
+python-dotenv>=1.0.1
+httpx>=0.27.0
+loguru>=0.7.2
