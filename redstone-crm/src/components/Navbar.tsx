@@ -19,7 +19,7 @@ export default function Navbar({ title }: NavbarProps) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border-soft bg-panel/80 px-5 pl-16 backdrop-blur-md md:pl-5">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-soft bg-panel/80 px-4 pl-16 backdrop-blur-md md:px-5 md:pl-5">
       <h1 className="text-sm font-semibold tracking-tight text-text-primary">
         {title}
       </h1>

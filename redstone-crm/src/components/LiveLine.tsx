@@ -1,4 +1,4 @@
-const BAR_COUNT = 24;
+const BAR_COUNT = 16;
 
 /**
  * LiveLine

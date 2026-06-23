@@ -71,9 +71,11 @@ export default function Sidebar() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border-soft bg-panel transition-all duration-200",
+          "flex flex-col border-r border-border-soft bg-panel transition-all duration-200",
           collapsed ? "w-16" : "w-60",
-          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          "fixed inset-y-0 left-0 z-40",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "md:static md:z-auto md:translate-x-0"
         )}
       >
         <div className={cn(

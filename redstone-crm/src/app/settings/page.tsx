@@ -18,9 +18,9 @@ export default function SettingsPage() {
   return (
     <div className="flex min-h-screen bg-base">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Navbar title="Settings" />
-        <main className="mx-auto max-w-2xl p-5">
+        <main className="mx-auto w-full max-w-2xl overflow-auto p-4 md:p-5">
           <form onSubmit={handleSave} className="space-y-5">
             <section className="rounded-lg border border-border-soft bg-panel p-5">
               <h2 className="text-sm font-semibold text-text-primary">Account</h2>

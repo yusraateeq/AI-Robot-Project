@@ -72,9 +72,9 @@ export default function ProfilePage() {
     return (
       <div className="flex min-h-screen bg-base">
         <Sidebar />
-        <div className="flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           <Navbar title="Profile" />
-          <main className="p-5">
+          <main className="overflow-auto p-4 md:p-5">
             <p className="text-sm text-text-tertiary">Loading...</p>
           </main>
         </div>
@@ -85,9 +85,9 @@ export default function ProfilePage() {
   return (
     <div className="flex min-h-screen bg-base">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Navbar title="Profile" />
-        <main className="mx-auto max-w-2xl space-y-6 p-5">
+        <main className="mx-auto w-full max-w-2xl space-y-6 overflow-auto p-4 md:p-5">
           <div className="rounded-lg border border-border-soft bg-panel p-6">
             <h2 className="mb-4 text-sm font-semibold text-text-primary">Account Info</h2>
             <div className="mb-6 flex items-center gap-4">
