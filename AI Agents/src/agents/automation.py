@@ -3,31 +3,21 @@ from collections.abc import Awaitable, Callable
 
 from loguru import logger
 
-from automation_agent.vicidial_controller import VICIdialController
-from common.config import settings
+from src.agents.vicidial import VICIdialController
+from src.config.settings import settings
 
 
-# ── Interest / no-response keywords ──────────────────────────────
 _INTEREST_KEYWORDS = [
     "transfer", "talk to someone", "talk to a person",
     "talk to agent", "talk to representative", "real person",
     "connect me", "speak to", "human",
 ]
 _HELLO_REPEAT = ["hello hello", "hello? hello", "hellooo", "anyone there"]
-
-# How long (seconds) to wait for the greeting recording to finish
 _GREETING_PLAY_DURATION = 8
 
 
 class AutomationAgent:
-    """
-    Automation Agent — manages VICIdial browser automation for all AI bots.
-    Handles login/logout lifecycle, pause/resume, periodic status polling,
-    live call detection, and smart call handling (greeting playback,
-    silence / no-response hangup, interest-driven transfer, call-end
-    detection).
-    """
-    
+
     def __init__(self):
         self.vicidial = VICIdialController()
         self._running = False
@@ -39,8 +29,6 @@ class AutomationAgent:
         self._login_tasks: dict[str, asyncio.Task] = {}
         self._login_statuses: dict[str, str] = {}
         self._login_errors: dict[str, str] = {}
-
-    # ── Lifecycle ──────────────────────────────────────────────────
 
     async def start(self):
         self._running = True
@@ -60,14 +48,10 @@ class AutomationAgent:
         await self.vicidial.disconnect_all()
         logger.info("Automation Agent stopped — all VICIdial sessions closed")
 
-    # ── Live-call callback registration ────────────────────────────
-
     def register_live_callback(
         self, callback: Callable[[str], Awaitable[None]]
     ):
         self._live_callbacks.append(callback)
-
-    # ── Bot actions ────────────────────────────────────────────────
 
     async def login_bot(self, bot_id: str) -> bool:
         success = await self.vicidial.login(bot_id)
@@ -136,8 +120,6 @@ class AutomationAgent:
     async def get_bot_status(self, bot_id: str) -> str | None:
         return await self.vicidial.get_status(bot_id)
 
-    # ── Dashboard monitoring ──────────────────────────────────────
-
     def _start_monitoring(self, bot_id: str):
         if bot_id in self._monitor_tasks:
             return
@@ -168,12 +150,10 @@ class AutomationAgent:
 
                     status_upper = status.upper()
 
-                    # ── LIVE CALL detected → start call handler ──
                     if "LIVE" in status_upper and "CALL" in status_upper:
                         logger.info(
                             f"[{bot_id}] |+|+|+ LIVE CALL DETECTED +|+|+|+"
                         )
-                        # Diagnostic: check SIP media stream status
                         sip_status = "BYPASSED" if settings.sip_bypass else "REGISTERED"
                         logger.info(
                             f"Checking SIP Media Stream: {sip_status} "
@@ -187,7 +167,6 @@ class AutomationAgent:
 
                     elif "READY" in status_upper:
                         diag_cycles = 1
-                        # If a call handler is still running, stop it
                         self._stop_call_handler(bot_id)
 
                 if status and "PAUSED" in status.upper():
@@ -209,11 +188,9 @@ class AutomationAgent:
                 logger.warning(f"[{bot_id}] Monitor error: {e}")
                 await asyncio.sleep(5)
 
-    # ── Smart call handling ────────────────────────────────────────
-
     def _start_call_handler(self, bot_id: str):
         if bot_id in self._call_handler_tasks:
-            return  # already handling a call
+            return
         task = asyncio.create_task(self._call_handler_worker(bot_id))
         self._call_handler_tasks[bot_id] = task
         logger.info(f"[{bot_id}] Call handler started")
@@ -225,38 +202,23 @@ class AutomationAgent:
             logger.info(f"[{bot_id}] Call handler stopped")
 
     async def _call_handler_worker(self, bot_id: str):
-        """
-        Manages the full lifecycle of an active call:
-        0. Click ANSWER to open audio path
-        1. Click the greeting recording button
-        2. Wait for recording to finish
-        3. Monitor for silence / no-response → hangup
-        4. Monitor for interest keywords → transfer
-        5. Detect customer hangup → log and return to READY
-        """
         try:
-            # ── Step 0: Answer the call to open audio path ───────
             logger.info(f"[{bot_id}] Answering call...")
             await self.vicidial.click_answer(bot_id)
             await asyncio.sleep(1)
 
-            # ── Step 1: Play greeting recording ──────────────────
             logger.info(f"[{bot_id}] Playing greeting recording...")
             await self.vicidial.play_greeting_recording(bot_id)
 
-            # ── Step 2: Wait for recording to finish ─────────────
             await asyncio.sleep(_GREETING_PLAY_DURATION)
 
-            # ── Step 3: Monitor the call ─────────────────────────
             greeting_ended = asyncio.get_running_loop().time()
             response_received = False
 
             while self._running:
-                # Check if we should still be handling this call
                 if bot_id not in self._call_handler_tasks:
                     return
 
-                # Check if call is still active
                 still_on = await self.vicidial.is_on_call(bot_id)
                 if not still_on:
                     logger.info(
@@ -266,11 +228,9 @@ class AutomationAgent:
                     await self._on_call_ended(bot_id, "customer_hungup")
                     return
 
-                # Read page body text for keyword scanning
                 body = await self.vicidial.get_body_text(bot_id)
                 body_lower = body.lower()
 
-                # ── Detect interest keywords → transfer ─────────
                 if any(kw in body_lower for kw in _INTEREST_KEYWORDS):
                     logger.info(
                         f"[{bot_id}] Interest detected in body text — "
@@ -280,7 +240,6 @@ class AutomationAgent:
                     await self._on_call_ended(bot_id, "transferred")
                     return
 
-                # ── Silence / no-response detection ──────────────
                 elapsed_since_greeting = (
                     asyncio.get_running_loop().time() - greeting_ended
                 )
@@ -316,15 +275,10 @@ class AutomationAgent:
             logger.warning(f"[{bot_id}] Call handler error: {e}")
 
     async def _on_call_ended(self, bot_id: str, reason: str):
-        """
-        Called when a call ends for any reason.
-        Logs the outcome and ensures the agent returns to READY.
-        """
         logger.info(
             f"[{bot_id}] Call ended — reason: {reason}"
         )
         self._stop_call_handler(bot_id)
-        # Ensure the agent is set back to READY
         await self.vicidial.resume_agent(bot_id)
 
     @property
@@ -342,5 +296,4 @@ class AutomationAgent:
         return result
 
 
-# Singleton
 automation_agent = AutomationAgent()

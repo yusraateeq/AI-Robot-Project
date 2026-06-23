@@ -50,7 +50,44 @@ export function isAuthenticated(): boolean {
 
 export function logout(): void {
   removeToken();
+  import("firebase/auth").then(({ signOut }) => {
+    import("@/src/lib/firebase").then(({ auth }) => signOut(auth));
+  });
   window.location.href = "/login";
+}
+
+export interface Profile {
+  firebase_uid: string;
+  email: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+  role?: string;
+  company?: string;
+  timezone?: string;
+  registration_complete?: boolean;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function fetchProfile(): Promise<Profile> {
+  const res = await fetch(`${BASE}/profile`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch profile");
+  return res.json();
+}
+
+export async function updateProfile(data: Partial<Profile>): Promise<Profile> {
+  const res = await fetch(`${BASE}/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update profile");
+  return res.json();
 }
 
 // ─── Bot actions ──────────────────────────────────────────────

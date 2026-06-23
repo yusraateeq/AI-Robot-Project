@@ -10,7 +10,7 @@ from typing import Any
 from loguru import logger
 from playwright.sync_api import sync_playwright, Browser, Page
 
-from common.config import settings
+from src.config.settings import settings
 
 
 @dataclass
@@ -35,10 +35,6 @@ class VICIdialController:
 
     @staticmethod
     def _find_frame_with(page, selector, timeout=15000):
-        """
-        Wait for *selector* to appear in any frame (main or child).
-        Returns the frame that contains it, or None.
-        """
         for f in page.frames:
             try:
                 f.wait_for_selector(selector, timeout=timeout)
@@ -49,13 +45,6 @@ class VICIdialController:
 
     @staticmethod
     def _handle_session_conflict(page) -> bool:
-        """
-        Check for 'Another live agent session' conflict across all frames.
-        If found:
-          1. Click any visible 'Logout' button to force-close zombie sessions.
-          2. Click the 'OK' link to dismiss the overlay.
-        Returns True if conflict was detected and handled.
-        """
         import time as _time
 
         conflict_detected = False
@@ -72,7 +61,6 @@ class VICIdialController:
 
         logger.info("Session conflict detected — clearing stale session")
 
-        # ── Step 1: Try to click Logout first to force-close zombie sessions ──
         for f in page.frames:
             try:
                 logout_btn = f.locator(
@@ -89,13 +77,11 @@ class VICIdialController:
             except Exception:
                 continue
 
-        # ── Step 2: Wait for LoadingBox to clear ──
         try:
             page.wait_for_selector('#LoadingBox', state='hidden', timeout=15000)
         except Exception:
             pass
 
-        # ── Step 3: Click the OK link to dismiss the overlay ──
         ok_clicked = False
         for f in page.frames:
             try:
@@ -118,7 +104,6 @@ class VICIdialController:
             logger.warning("Session conflict overlay found but OK link was not clickable")
             return False
 
-        # ── Step 4: Wait for page navigation or PAUSED button ──
         import time as _time2
         deadline = _time2.time() + 45
         while _time2.time() < deadline:
@@ -126,10 +111,8 @@ class VICIdialController:
                 page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 pass
-            # Check if URL changed from the conflict page
             current_url = page.url
             if "login" not in current_url.lower() and "conflict" not in current_url.lower():
-                # URL changed — page navigated past conflict
                 for f in page.frames:
                     try:
                         paused = f.locator(
@@ -155,11 +138,6 @@ class VICIdialController:
 
     @staticmethod
     def _dismiss_ok_popup(page) -> bool:
-        """
-        Search all frames for an 'OK' confirmation popup and click it.
-        This popup may appear after campaign login before the agent dashboard loads.
-        Returns True if an OK button was found and clicked.
-        """
         import time as _time
 
         for attempt in range(3):
@@ -183,11 +161,6 @@ class VICIdialController:
 
     @staticmethod
     def _click_ready_button(page) -> bool:
-        """
-        Search all frames for a READY/PAUSED/Resume button and click it
-        so the agent becomes READY to receive calls.
-        Returns True if a button was found and clicked.
-        """
         import time as _time
 
         for attempt in range(5):
@@ -223,7 +196,6 @@ class VICIdialController:
 
     @staticmethod
     def _check_sip_port(server_ip: str, port: int = 5061) -> str:
-        """Probe whether the SIP port is reachable using a TCP connect check."""
         try:
             tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tcp_sock.settimeout(3)
@@ -257,7 +229,6 @@ class VICIdialController:
         max_attempts = 3
         last_error: str | None = None
 
-        # ── Network diagnosis: check if port 5061 is reachable ──
         logger.info("Running network diagnosis for SIP...")
         port_status = VICIdialController._check_sip_port(server_ip, 5061)
         logger.info(f"Port 5061 status: {port_status}")
@@ -315,7 +286,6 @@ class VICIdialController:
                     )
                     return True
 
-                # ── Parse 401 challenge ──────────────────────────
                 if "401 Unauthorized" not in resp:
                     logger.warning(
                         f"Unexpected SIP response (expected 401): "
@@ -335,7 +305,6 @@ class VICIdialController:
 
                 logger.debug(f"SIP challenge received — realm={realm}")
 
-                # ── Authenticated REGISTER ───────────────────────
                 ha1 = hashlib.md5(
                     f"{extension}:{realm}:{password}".encode()
                 ).hexdigest()
@@ -463,7 +432,6 @@ class VICIdialController:
                 )
                 page.wait_for_load_state("domcontentloaded")
 
-                # ── Step 1: Phone Login ─────────────────────────
                 f_phone = VICIdialController._find_frame_with(
                     page, 'input[name="phone_login"]', timeout=40000
                 )
@@ -482,7 +450,6 @@ class VICIdialController:
                 page.wait_for_load_state("domcontentloaded")
                 logger.info("Phone login submitted successfully")
 
-                # Verify phone login succeeded — check fields are gone
                 still_phone = VICIdialController._find_frame_with(
                     page, 'input[name="phone_login"]', timeout=5000
                 )
@@ -496,7 +463,6 @@ class VICIdialController:
                         "Phone login failed — check PHONE_EXT / PHONE_PASS in .env"
                     )
 
-                # ── Step 2: Find campaign login form ────────────
                 page.wait_for_timeout(2000)
                 deadline = _time.time() + 40
                 f_camp = None
@@ -593,10 +559,7 @@ class VICIdialController:
                         ".style.display = 'none')"
                     )
 
-                # ── Step 4: Dismiss 'OK' confirmation popup ───────
                 VICIdialController._dismiss_ok_popup(page)
-
-                # ── Step 5: Click READY / Resume to start receiving calls ──
                 VICIdialController._click_ready_button(page)
 
                 return p, browser, page
@@ -672,7 +635,6 @@ class VICIdialController:
         return await self._run_on_thread(session.executor, _do_status)
 
     async def check_hopper_status(self, bot_id: str) -> str:
-        """Check hopper status in the VICIdial UI. Returns 'ok', 'empty', or 'unknown'."""
         session = self._sessions.get(bot_id)
         if not session:
             return "unknown"
@@ -682,7 +644,6 @@ class VICIdialController:
             body = page.inner_text("body") if page.query_selector("body") else ""
             body_upper = body.upper()
 
-            # Negative indicators — hopper empty or no leads
             for phrase in ["HOPPER EMPTY", "HOPPER IS EMPTY",
                            "NO LEADS", "NO MORE LEADS",
                            "NO CALLS TO MAKE", "LEADS: 0",
@@ -691,7 +652,6 @@ class VICIdialController:
                     logger.warning(f"Bot {bot_id} — HOPPER EMPTY: Waiting for leads ('{phrase}')")
                     return "empty"
 
-            # Positive indicators — has leads
             lead_pats = [
                 r'(?:LEADS|CALLS)\s*:?\s*([1-9]\d*)',
                 r'AVAILABLE\s+LEADS\s*:?\s*([1-9]\d*)',
@@ -710,7 +670,6 @@ class VICIdialController:
         return await self._run_on_thread(session.executor, _check)
 
     async def detect_dial_method(self, bot_id: str) -> str:
-        """Detect the campaign dial method from the agent UI."""
         session = self._sessions.get(bot_id)
         if not session:
             return "unknown"
@@ -733,7 +692,6 @@ class VICIdialController:
         return await self._run_on_thread(session.executor, _detect)
 
     async def diagnose_campaign(self, bot_id: str) -> dict:
-        """Run full campaign diagnostics. Returns status dict, never clicks anything."""
         dial_method = await self.detect_dial_method(bot_id)
         hopper_status = await self.check_hopper_status(bot_id)
 
@@ -779,7 +737,6 @@ class VICIdialController:
         def _do_resume():
             import time as _time
 
-            # ── Helper: get agent status text from any frame ──
             def _get_status() -> str:
                 for f in session.page.frames:
                     try:
@@ -801,7 +758,6 @@ class VICIdialController:
                 )
                 return True
 
-            # ── Retry loop: wait for PAUSED / Resume button to appear ──
             paused_found = False
             attempts = 0
             max_attempts = 6
@@ -809,7 +765,6 @@ class VICIdialController:
             while not paused_found and attempts < max_attempts:
                 attempts += 1
 
-                # Locator strategies in priority order
                 locators = [
                     ("button", "YOU ARE PAUSED", False),
                     ("link", "YOU ARE PAUSED", False),
@@ -848,7 +803,6 @@ class VICIdialController:
                     )
                     _time.sleep(2)
 
-            # ── Verify status transition ──
             if paused_found:
                 deadline = _time.time() + 15
                 while _time.time() < deadline:
@@ -889,10 +843,6 @@ class VICIdialController:
 
     @staticmethod
     def _click_dashboard_button(page, *texts: str) -> bool:
-        """
-        Click the first visible dashboard button matching any of *texts.
-        Searches all frames. Returns True if clicked.
-        """
         for f in page.frames:
             for text in texts:
                 try:
@@ -910,7 +860,6 @@ class VICIdialController:
 
     @staticmethod
     def _get_body_text(page) -> str:
-        """Get the full body text from all frames (for keyword scanning)."""
         parts = []
         for f in page.frames:
             try:
@@ -921,27 +870,7 @@ class VICIdialController:
                 continue
         return "\n".join(parts)
 
-    @staticmethod
-    def _wait_while_on_call(page, poll_interval=1.0) -> None:
-        """
-        Block until the HANGUP CUSTOMER button disappears
-        (call ended / customer hung up).
-        """
-        import time as _time
-
-        while True:
-            still_on = VICIdialController._click_dashboard_button(
-                page, "HANGUP CUSTOMER", "HANGUP"
-            )
-            if not still_on:
-                # Double-check: look for any call-active indicator
-                body = VICIdialController._get_body_text(page)
-                if "HANGUP" not in body.upper():
-                    return
-            _time.sleep(poll_interval)
-
     async def click_answer(self, bot_id: str) -> bool:
-        """Click the ANSWER button on the VICIdial dashboard to accept an incoming call."""
         session = self._sessions.get(bot_id)
         if not session:
             raise RuntimeError(f"Bot {bot_id} not logged in")
@@ -964,10 +893,6 @@ class VICIdialController:
     async def play_greeting_recording(
         self, bot_id: str, recording: str | None = None
     ) -> bool:
-        """
-        Click the greeting recording button (e.g. 'Recording11')
-        on the VICIdial dashboard to play the pre-recorded greeting.
-        """
         session = self._sessions.get(bot_id)
         if not session:
             raise RuntimeError(f"Bot {bot_id} not logged in")
@@ -989,7 +914,6 @@ class VICIdialController:
         return result
 
     async def click_hangup_customer(self, bot_id: str) -> bool:
-        """Click the HANGUP CUSTOMER button to end the current call."""
         session = self._sessions.get(bot_id)
         if not session:
             raise RuntimeError(f"Bot {bot_id} not logged in")
@@ -1011,10 +935,6 @@ class VICIdialController:
     async def click_transfer_conf(
         self, bot_id: str, transfer_number: str | None = None
     ) -> bool:
-        """
-        Click the TRANSFER - CONF button to initiate a conference
-        transfer. Optionally type a transfer number afterward.
-        """
         session = self._sessions.get(bot_id)
         if not session:
             raise RuntimeError(f"Bot {bot_id} not logged in")
@@ -1027,7 +947,6 @@ class VICIdialController:
                 page, "TRANSFER - CONF", "TRANSFER", "CONF"
             )
             if clicked and num:
-                # Some VICIdial UIs show a number input after clicking transfer
                 import time as _time
                 _time.sleep(1)
                 for f in page.frames:
@@ -1062,14 +981,12 @@ class VICIdialController:
         return result
 
     async def is_on_call(self, bot_id: str) -> bool:
-        """Check whether the bot is currently on a live call."""
         session = self._sessions.get(bot_id)
         if not session:
             return False
 
         def _check():
             body = VICIdialController._get_body_text(session.page).upper()
-            # On call if HANGUP button is present and call-active keywords exist
             has_hangup = "HANGUP" in body or "HANGUP CUSTOMER" in body
             on_call = has_hangup and ("LIVE" in body or "CALL" in body)
             return on_call
@@ -1077,7 +994,6 @@ class VICIdialController:
         return await self._run_on_thread(session.executor, _check)
 
     async def get_body_text(self, bot_id: str) -> str:
-        """Get the full visible text from the VICIdial page (all frames)."""
         session = self._sessions.get(bot_id)
         if not session:
             return ""

@@ -8,6 +8,7 @@ python-socketio>=5.11.0
 
 # Auth
 pyjwt>=2.8.0
+firebase-admin>=7.0.0
 
 # Database (aiosqlite is pure Python — no greenlet, no asyncpg)
 aiosqlite>=0.20.0

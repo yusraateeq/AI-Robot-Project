@@ -1,12 +1,14 @@
 import uuid
 from datetime import datetime
 
-from common.models import CallLog
-from logger_agent.db_manager import DatabaseManager
+from loguru import logger
+
+from src.database.repository import DatabaseRepository
+from src.models import CallLog
 
 
 class CallLogger:
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db: DatabaseRepository):
         self.db = db
 
     async def start_call(
@@ -51,3 +53,28 @@ class CallLogger:
 
     async def get_recent_calls(self, limit: int = 50) -> list[CallLog]:
         return await self.db.get_call_logs(limit=limit)
+
+
+class LoggerAgent:
+
+    def __init__(self):
+        self.db = DatabaseRepository()
+        self.logger = CallLogger(self.db)
+        self._running = False
+
+    async def start(self):
+        logger.info("Logger Agent initializing database...")
+        await self.db.initialize()
+        self._running = True
+        logger.info("Logger Agent started — database ready")
+
+    async def stop(self):
+        self._running = False
+        logger.info("Logger Agent stopped")
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+
+logger_agent = LoggerAgent()

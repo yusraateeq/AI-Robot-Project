@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Sidebar from "@/src/components/Sidebar";
 import Navbar from "@/src/components/Navbar";
 import BotCard from "@/src/components/BotCard";
@@ -11,6 +11,7 @@ import type { BotStatus } from "@/src/lib/types";
 
 export default function BotsPage() {
   const [bots, setBots] = useState<Bot[]>([]);
+  const mountedRef = useRef(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function BotsPage() {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     fetchBotsData().then((result) => {
       if (cancelled) return;
@@ -79,16 +81,16 @@ export default function BotsPage() {
     setEditingBot(null);
   }
 
-  if (loading) {
+  if (!mountedRef.current || loading) {
     return (
       <div className="flex min-h-screen bg-base">
         <Sidebar />
-        <div className="flex-1">
-          <Navbar title="AI bots" />
-          <main className="p-5">
-            <p className="text-sm text-text-tertiary">Loading…</p>
-          </main>
-        </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Navbar title="AI bots" />
+        <main className="overflow-auto p-4 md:p-5">
+          <p className="text-sm text-text-tertiary">Loading…</p>
+        </main>
+      </div>
       </div>
     );
   }
@@ -96,10 +98,10 @@ export default function BotsPage() {
   return (
     <div className="flex min-h-screen bg-base">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Navbar title="AI bots" />
-        <main className="p-5">
-          <div className="mb-5 flex items-center justify-between">
+        <main className="overflow-auto p-4 md:p-5">
+          <div className="mb-4 flex items-center justify-between md:mb-5">
             <p className="text-sm text-text-secondary">
               {activeCount} of {bots.length} bots active
             </p>

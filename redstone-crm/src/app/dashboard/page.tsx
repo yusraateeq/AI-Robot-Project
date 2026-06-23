@@ -73,28 +73,28 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-base">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Navbar title="Dashboard" />
-        <main className="space-y-5 p-5">
+        <main className="space-y-5 overflow-auto p-4 md:p-5">
           {!online && loaded && (
-            <div className="rounded-lg border border-red/30 bg-red-dim/20 px-4 py-3 text-sm font-medium text-red">
+            <div className="rounded-lg border border-red/30 bg-red-dim/20 px-3 py-2.5 text-xs font-medium text-red md:px-4 md:py-3 md:text-sm">
               ⚠ System Offline — Backend se connection nahi ho pa raha
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
             <StatCard label="Total calls today" value={String(stats.total_calls)} />
             <StatCard label="Transfers" value={String(stats.transfers)} />
             <StatCard label="Active bots" value={String(stats.active_bots)} />
             <StatCard label="Success rate" value={`${stats.success_rate}%`} />
           </div>
 
-          <div className="h-48 rounded-lg border border-border-soft bg-panel p-4">
+          <div className="h-40 rounded-lg border border-border-soft bg-panel p-4 md:h-48">
             <h2 className="text-xs text-text-tertiary mb-2">Live Call Volume</h2>
             <CallsChart stats={stats} />
           </div>
 
-          <div className="flex items-center justify-between border-b border-border-soft px-5 py-4">
+          <div className="flex items-center justify-between border-b border-border-soft px-4 py-4 md:px-5">
             <h2 className="text-sm font-semibold text-text-primary">Bot status</h2>
             <Link
               href="/dashboard/bots"
@@ -105,13 +105,13 @@ export default function DashboardPage() {
           </div>
           <ul className="divide-y divide-border-soft">
             {bots.length === 0 && !loaded && (
-              <li className="px-5 py-3 text-sm text-text-tertiary">Loading…</li>
+              <li className="px-4 py-3 text-sm text-text-tertiary md:px-5">Loading…</li>
             )}
             {bots.length === 0 && loaded && (
-              <li className="px-5 py-3 text-sm text-text-tertiary">No bots found in backend</li>
+              <li className="px-4 py-3 text-sm text-text-tertiary md:px-5">No bots found in backend</li>
             )}
             {bots.map((bot) => (
-              <li key={bot.id} className="flex items-center justify-between px-5 py-3">
+              <li key={bot.id} className="flex items-center justify-between gap-2 px-4 py-3 md:px-5">
                 <div className="flex items-center gap-3">
                   <span className={`h-2 w-2 rounded-full ${bot.active ? "bg-signal signal-dot" : "bg-text-tertiary"}`} />
                   <div>

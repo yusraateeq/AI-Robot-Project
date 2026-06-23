@@ -1,6 +1,6 @@
 import asyncio
-import json
 from dataclasses import dataclass, field
+
 from loguru import logger
 
 
@@ -15,12 +15,6 @@ class ActiveCall:
 
 
 class VoiceManager:
-    """
-    Manages active voice call streams. Pairs with a WebSocket/Socket.IO transport
-    to relay audio between Twilio/VICIdial media streams and the Brain Agent.
-    Each active call gets an audio queue for bidirectional streaming.
-    """
-
     def __init__(self):
         self._calls: dict[str, ActiveCall] = {}
 
