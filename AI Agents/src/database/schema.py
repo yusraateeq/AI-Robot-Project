@@ -1,35 +1,21 @@
-import sqlite3
-from pathlib import Path
-
-import aiosqlite
-
-from common.config import settings
-
-
-def _db_path() -> str:
-    url = settings.database_url
-    if url.startswith("sqlite+aiosqlite:///"):
-        return url[len("sqlite+aiosqlite:///"):]
-    return "redstone_crm.db"
-
-
-DB_PATH = _db_path()
-
-
-async def get_connection() -> aiosqlite.Connection:
-    db_dir = Path(DB_PATH).parent
-    if db_dir != Path("."):
-        db_dir.mkdir(parents=True, exist_ok=True)
-    conn = await aiosqlite.connect(DB_PATH)
-    conn.row_factory = aiosqlite.Row
-    await conn.execute("PRAGMA journal_mode=WAL")
-    await conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+from src.database.connection import get_connection
 
 
 async def init_db():
     conn = await get_connection()
     try:
+        # ── Migration: add columns that may be missing in existing DBs ──
+        for migration in [
+            "ALTER TABLE profiles ADD COLUMN registration_complete INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'agent'",
+            "ALTER TABLE profiles ADD COLUMN company TEXT",
+            "ALTER TABLE profiles ADD COLUMN timezone TEXT DEFAULT 'America/New_York'",
+        ]:
+            try:
+                await conn.execute(migration)
+            except Exception:
+                pass  # column already exists
+
         await conn.executescript("""
             CREATE TABLE IF NOT EXISTS bots (
                 id          TEXT PRIMARY KEY,
@@ -79,6 +65,21 @@ async def init_db():
                 script_path     TEXT DEFAULT 'resources/script.txt',
                 created_at      TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS profiles (
+                firebase_uid          TEXT PRIMARY KEY,
+                email                 TEXT NOT NULL,
+                username              TEXT UNIQUE,
+                display_name          TEXT,
+                avatar_url            TEXT,
+                phone                 TEXT,
+                role                  TEXT DEFAULT 'agent',
+                company               TEXT,
+                timezone              TEXT DEFAULT 'America/New_York',
+                registration_complete INTEGER NOT NULL DEFAULT 0,
+                created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
             );
         """)
         await conn.commit()

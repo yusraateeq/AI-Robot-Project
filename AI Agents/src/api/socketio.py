@@ -2,18 +2,10 @@ import asyncio
 from loguru import logger
 import socketio
 
-from common.config import settings
+from src.config.settings import settings
 
 
 class AgentSocketServer:
-    """
-    Socket.IO server that broadcasts real-time agent events to the Next.js frontend.
-    Matches the socket.io-client connection the CRM dashboard already expects on port 3001.
-    Events:
-      - update-dashboard  → bot status changes, call logs, stats
-      - call-update       → per-call progress (ringing, in-progress, completed)
-      - agent-status      → automation/brain/logger agent health
-    """
 
     def __init__(self):
         self.sio = socketio.AsyncServer(
@@ -57,5 +49,4 @@ class AgentSocketServer:
         await self.sio.emit("agent-status", data)
 
 
-# Singleton
 socket_server = AgentSocketServer()

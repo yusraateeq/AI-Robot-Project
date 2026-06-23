@@ -3,17 +3,10 @@ import re
 from loguru import logger
 from openai import AsyncOpenAI
 
-from common.config import settings
+from src.config.settings import settings
 
 
 class ConversationEngine:
-    """
-    Manages OpenAI chat completions for AI voice conversations.
-    Maintains conversation history per call session and generates
-    context-aware responses, summaries, and dispositions.
-    Can load and follow a structured call script from resources/script.txt.
-    """
-
     SYSTEM_PROMPT = (
         "You are an AI voice assistant for a sales outreach campaign. "
         "Your name is Mary. You are professional, warm, and concise. "
@@ -30,8 +23,14 @@ class ConversationEngine:
     )
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self._client: AsyncOpenAI | None = None
         self._sessions: dict[str, list[dict]] = {}
+
+    @property
+    def client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = AsyncOpenAI(api_key=settings.openai_api_key)
+        return self._client
         self.script_sections: dict[str, str] = {}
         self._script_loaded = False
 
@@ -107,8 +106,6 @@ class ConversationEngine:
             temperature=0,
         )
         return (completion.choices[0].message.content or "UNKNOWN").strip()
-
-    # ── Script management ──────────────────────────────────────────
 
     def load_script(self, filepath: str):
         with open(filepath, encoding="utf-8") as f:

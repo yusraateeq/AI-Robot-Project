@@ -3,18 +3,25 @@ import io
 from elevenlabs import AsyncElevenLabs
 from openai import AsyncOpenAI
 
-from common.config import settings
+from src.config.settings import settings
 
 
 class SpeechHandler:
-    """
-    Handles Speech-to-Text (OpenAI Whisper) and Text-to-Speech (ElevenLabs).
-    Provides raw audio bytes that the VoiceManager streams during calls.
-    """
-
     def __init__(self):
-        self.stt_client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self.tts_client = AsyncElevenLabs(api_key=settings.elevenlabs_api_key)
+        self._stt: AsyncOpenAI | None = None
+        self._tts: AsyncElevenLabs | None = None
+
+    @property
+    def stt_client(self) -> AsyncOpenAI:
+        if self._stt is None:
+            self._stt = AsyncOpenAI(api_key=settings.openai_api_key)
+        return self._stt
+
+    @property
+    def tts_client(self) -> AsyncElevenLabs:
+        if self._tts is None:
+            self._tts = AsyncElevenLabs(api_key=settings.elevenlabs_api_key)
+        return self._tts
 
     async def transcribe(self, audio_bytes: bytes) -> str:
         audio_file = io.BytesIO(audio_bytes)

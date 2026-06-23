@@ -1,13 +1,13 @@
-from datetime import datetime
 from typing import Optional
 
-from common.database import get_connection, init_db
-from common.models import Bot, CallLog, Setting
+from src.database.connection import get_connection
+from src.models import Bot, CallLog
 
 
-class DatabaseManager:
+class DatabaseRepository:
 
     async def initialize(self):
+        from src.database.schema import init_db
         await init_db()
 
     # ── Bots ──────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ class DatabaseManager:
         finally:
             await conn.close()
 
-    # ── Users (auth) ──────────────────────────────────────────────
+    # ── Users ──────────────────────────────────────────────────────
 
     async def create_user(self, username: str, password_hash: str) -> int:
         conn = await get_connection()
@@ -229,9 +229,63 @@ class DatabaseManager:
             await conn.execute(
                 """INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
                    ON CONFLICT(key) DO UPDATE SET value = excluded.value,
-                                                  updated_at = datetime('now')""",
+                                                   updated_at = datetime('now')""",
                 (key, value),
             )
             await conn.commit()
+        finally:
+            await conn.close()
+
+    # ── Profiles ──────────────────────────────────────────────────
+
+    async def create_profile(self, firebase_uid: str, email: str, username: str | None = None, display_name: str | None = None, avatar_url: str | None = None) -> dict:
+        conn = await get_connection()
+        try:
+            await conn.execute(
+                """INSERT INTO profiles (firebase_uid, email, username, display_name, avatar_url, registration_complete)
+                   VALUES (?, ?, ?, ?, ?, 0)""",
+                (firebase_uid, email, username, display_name, avatar_url),
+            )
+            await conn.commit()
+            return {"firebase_uid": firebase_uid, "email": email, "username": username, "display_name": display_name, "avatar_url": avatar_url, "registration_complete": False}
+        except Exception:
+            await conn.rollback()
+            raise
+        finally:
+            await conn.close()
+
+    async def get_profile(self, firebase_uid: str) -> dict | None:
+        conn = await get_connection()
+        try:
+            cursor = await conn.execute("SELECT * FROM profiles WHERE firebase_uid = ?", (firebase_uid,))
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            await conn.close()
+
+    async def get_profile_by_email(self, email: str) -> dict | None:
+        conn = await get_connection()
+        try:
+            cursor = await conn.execute("SELECT * FROM profiles WHERE email = ?", (email,))
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            await conn.close()
+
+    async def update_profile(self, firebase_uid: str, **kwargs) -> dict | None:
+        allowed = {"username", "display_name", "avatar_url", "phone", "role", "company", "timezone", "registration_complete"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        if not updates:
+            return await self.get_profile(firebase_uid)
+        sets = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [firebase_uid]
+        conn = await get_connection()
+        try:
+            await conn.execute(
+                f"UPDATE profiles SET {sets}, updated_at = datetime('now') WHERE firebase_uid = ?",
+                values,
+            )
+            await conn.commit()
+            return await self.get_profile(firebase_uid)
         finally:
             await conn.close()

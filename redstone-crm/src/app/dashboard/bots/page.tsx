@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Sidebar from "@/src/components/Sidebar";
 import Navbar from "@/src/components/Navbar";
 import BotCard from "@/src/components/BotCard";
@@ -11,6 +11,7 @@ import type { BotStatus } from "@/src/lib/types";
 
 export default function BotsPage() {
   const [bots, setBots] = useState<Bot[]>([]);
+  const mountedRef = useRef(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function BotsPage() {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     fetchBotsData().then((result) => {
       if (cancelled) return;
@@ -79,7 +81,7 @@ export default function BotsPage() {
     setEditingBot(null);
   }
 
-  if (loading) {
+  if (!mountedRef.current || loading) {
     return (
       <div className="flex min-h-screen bg-base">
         <Sidebar />

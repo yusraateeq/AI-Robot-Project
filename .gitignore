@@ -2,5 +2,9 @@ node_modules/
 .next/
 *.db
 .env
+.env.local
 __pycache__/
+.venv/
 .DS_Store
+*.tsbuildinfo
+**/AGENTS.md

@@ -6,9 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-# Resolve .env relative to this file's location (always finds AI Agents/.env)
-# Also checks CWD and common naming pitfalls as fallbacks.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _CANDIDATES = [
     _PROJECT_ROOT / ".env",
     Path.cwd() / ".env",
@@ -54,9 +52,7 @@ class Settings:
     vicidial_url: str = field(default_factory=lambda: os.getenv("VICIDIAL_URL", "http://localhost:80"))
     vicidial_user: str = field(default_factory=lambda: os.getenv("VICIDIAL_USER", "admin"))
     vicidial_pass: str = field(default_factory=lambda: os.getenv("VICIDIAL_PASS", ""))
-    vicidial_campaign: str = field(
-        default_factory=lambda: os.getenv("VICIDIAL_CAMPAIGN", "RedstoneCampaign")
-    )
+    vicidial_campaign: str = field(default_factory=lambda: os.getenv("VICIDIAL_CAMPAIGN", "RedstoneCampaign"))
     phone_ext: str = field(default_factory=lambda: os.getenv("PHONE_EXT", ""))
     phone_pass: str = field(default_factory=lambda: os.getenv("PHONE_PASS", ""))
 
@@ -70,7 +66,6 @@ class Settings:
     jwt_secret: str = field(default_factory=lambda: os.getenv("JWT_SECRET", "change-me-in-production"))
     jwt_algorithm: str = field(default_factory=lambda: os.getenv("JWT_ALGORITHM", "HS256"))
 
-    # ── Smart call handling ────────────────────────────────────────
     greeting_recording: str = field(
         default_factory=lambda: os.getenv("GREETING_RECORDING", "Recording11")
     )
@@ -84,9 +79,5 @@ class Settings:
         default_factory=lambda: os.getenv("NO_RESPONSE_ACTION", "hangup")
     )
 
-settings = Settings()
 
-# common/config.py mein settings = Settings() ke baad ye add karein:
-if __name__ == "__main__":
-    print(f"Loaded VICIdial URL: {settings.vicidial_url}")
-    print(f"Loaded VICIdial User: {settings.vicidial_user}")
+settings = Settings()

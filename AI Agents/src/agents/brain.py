@@ -2,19 +2,13 @@ import os
 
 from loguru import logger
 
-from brain_agent.conversation_engine import ConversationEngine
-from brain_agent.speech_handler import SpeechHandler
-from brain_agent.voice_manager import VoiceManager
-from common.config import settings
+from src.agents.conversation import ConversationEngine
+from src.agents.speech import SpeechHandler
+from src.agents.voice import VoiceManager
+from src.config.settings import settings
 
 
 class BrainAgent:
-    """
-    Brain Agent — conversational AI core.
-    Orchestrates STT (Whisper), LLM reasoning (OpenAI), and TTS (ElevenLabs)
-    to power natural voice conversations for active calls.
-    Integrates with a structured call script for Medicare outreach.
-    """
 
     def __init__(self):
         self.conversation = ConversationEngine()
@@ -31,12 +25,10 @@ class BrainAgent:
         self._running = False
         logger.info("Brain Agent stopped")
 
-    # ── Script loading ─────────────────────────────────────────────
-
     def load_script(self, filepath: str | None = None):
         if filepath is None:
             filepath = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                 "resources",
                 "script.txt",
             )
@@ -44,10 +36,7 @@ class BrainAgent:
         self.conversation.load_script(filepath)
         logger.info(f"Call script loaded from {filepath}")
 
-    # ── Script-guided call flow ────────────────────────────────────
-
     async def start_call_with_greeting(self, call_id: str):
-        """Set up scripted session, return the greeting text + audio."""
         if not self.conversation.script_loaded:
             self.load_script()
 
@@ -65,11 +54,6 @@ class BrainAgent:
     async def check_medicare_qualification(
         self, call_id: str, user_text: str
     ):
-        """
-        Analyze the user's response to the Part A & B question.
-        Returns (decision, next_text, audio).
-        decision is 'YES', 'NO', or 'UNCLEAR'.
-        """
         self.conversation.add_message(call_id, "user", user_text)
 
         analysis = await self.conversation.client.chat.completions.create(
@@ -123,8 +107,6 @@ class BrainAgent:
         )
         return decision, no_text, audio
 
-    # ── Standard audio pipeline ────────────────────────────────────
-
     async def process_audio(self, call_id: str, audio_bytes: bytes) -> bytes | None:
         if not self._running:
             return None
@@ -159,5 +141,4 @@ class BrainAgent:
         return self._running
 
 
-# Singleton
 brain_agent = BrainAgent()
