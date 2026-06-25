@@ -21,6 +21,7 @@ export default function LoginPage() {
 
   // Handle redirect result (Google sign-in)
   useEffect(() => {
+    if (!auth) return;
     getRedirectResult(auth)
       .then(async (result) => {
         if (!result) return;
@@ -58,6 +59,9 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
+      if (!auth) {
+        throw new Error("Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_API_KEY in .env.local");
+      }
       let cred;
       if (isRegister) {
         cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -79,6 +83,10 @@ export default function LoginPage() {
   }
 
   function handleGoogleSignIn() {
+    if (!auth || !googleProvider) {
+      setError("Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_API_KEY in .env.local");
+      return;
+    }
     signInWithRedirect(auth, googleProvider);
   }
 

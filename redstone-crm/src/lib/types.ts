@@ -1,4 +1,4 @@
-export type BotStatus = "active" | "offline" | "restarting";
+export type BotStatus = "active" | "online" | "offline" | "restarting";
 
 export interface Bot {
   id: string;

@@ -110,10 +110,16 @@ export default function DashboardPage() {
             {bots.length === 0 && loaded && (
               <li className="px-4 py-3 text-sm text-text-tertiary md:px-5">No bots found in backend</li>
             )}
-            {bots.map((bot) => (
+            {bots.map((bot) => {
+              const dotColor = bot.status === "active" ? "bg-signal signal-dot" : bot.status === "online" ? "bg-sky-400 signal-dot" : "bg-text-tertiary";
+              const label = bot.status === "active" ? "Active" : bot.status === "online" ? "Online" : "Offline";
+              const labelColor = bot.status === "active" ? "var(--color-signal)" : bot.status === "online" ? "#38bdf8" : "var(--color-text-tertiary)";
+              const borderColor = bot.status === "active" ? "rgba(61,220,132,0.3)" : bot.status === "online" ? "rgba(56,189,248,0.3)" : "var(--color-border-soft)";
+              const bgColor = bot.status === "active" ? "rgba(61,220,132,0.1)" : bot.status === "online" ? "rgba(56,189,248,0.1)" : "var(--color-panel-raised)";
+              return (
               <li key={bot.id} className="flex items-center justify-between gap-2 px-4 py-3 md:px-5">
                 <div className="flex items-center gap-3">
-                  <span className={`h-2 w-2 rounded-full ${bot.active ? "bg-signal signal-dot" : "bg-text-tertiary"}`} />
+                  <span className={`h-2 w-2 rounded-full ${dotColor}`} />
                   <div>
                     <p className="font-mono text-sm font-medium text-text-primary">{bot.name}</p>
                     <p className="text-xs text-text-secondary">{bot.campaign}</p>
@@ -121,16 +127,17 @@ export default function DashboardPage() {
                 </div>
                 <span className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
                   style={{
-                    borderColor: bot.active ? "rgba(61,220,132,0.3)" : "var(--color-border-soft)",
-                    backgroundColor: bot.active ? "rgba(61,220,132,0.1)" : "var(--color-panel-raised)",
-                    color: bot.active ? "var(--color-signal)" : "var(--color-text-tertiary)",
+                    borderColor,
+                    backgroundColor: bgColor,
+                    color: labelColor,
                   }}
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full ${bot.active ? "bg-signal signal-dot" : "bg-text-tertiary"}`} />
-                  {bot.active ? "Active" : "Offline"}
+                  <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                  {label}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </main>
       </div>

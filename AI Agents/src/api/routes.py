@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import time
 from dataclasses import dataclass
@@ -191,12 +192,10 @@ async def api_stats():
     total_calls = await db.get_total_calls()
     transfers = await db.get_transferred_calls()
     success_rate = round((transfers / total_calls * 100) if total_calls > 0 else 0, 1)
-    active_bots = 0
-    for bot in bots:
-        if bot.id in automation_agent._monitor_tasks:
-            vic_status = await automation_agent.get_bot_status(bot.id)
-            if vic_status and "READY" in vic_status.upper():
-                active_bots += 1
+    active_bots = sum(
+        1 for bot in bots
+        if automation_agent.bot_statuses.get(bot.id) in ("active", "online")
+    )
 
     hourly_volume = await db.get_hourly_call_volume()
 
@@ -226,6 +225,7 @@ async def api_bots():
         if bot.id in active_ids:
             vic_status = await automation_agent.get_bot_status(bot.id)
         is_active = vic_status is not None and "READY" in vic_status.upper()
+        overall_status = automation_agent.bot_statuses.get(bot.id, "offline")
         calls_today = await db.get_bot_calls_today(bot.id)
         result.append({
             "id": bot.id,
@@ -233,7 +233,7 @@ async def api_bots():
             "campaign": bot.campaign_id or "—",
             "vicidial_status": vic_status,
             "active": is_active,
-            "status": "active" if is_active else "offline",
+            "status": overall_status,
             "callsToday": calls_today,
         })
     return {"bots": result}
@@ -267,7 +267,17 @@ async def api_bot_restart(bot_id: str):
 @router.get("/api/bots/{bot_id}/status")
 async def api_bot_status(bot_id: str):
     vicidial_status = await automation_agent.get_bot_status(bot_id)
-    return {"bot_id": bot_id, "vicidial_status": vicidial_status}
+    overall = automation_agent.bot_statuses.get(bot_id, "offline")
+    return {"bot_id": bot_id, "vicidial_status": vicidial_status, "status": overall}
+
+
+@router.post("/api/login")
+async def api_login(req: BotActionRequest):
+    try:
+        asyncio.create_task(automation_agent.start_login_bot(req.bot_id))
+        return {"status": "online", "bot_id": req.bot_id}
+    except Exception as e:
+        raise HTTPException(500, f"Login failed: {e}")
 
 
 @router.post("/api/bots/add")
@@ -323,6 +333,71 @@ async def api_bot_delete(bot_id: str):
     return {"status": "ok", "bot_id": bot_id}
 
 
+# ─── Bot activation / deactivation ───────────────────────────────
+
+
+@router.post("/api/activate-bot")
+async def api_activate_bot(authorization: str | None = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Missing or invalid Authorization header")
+
+    token = authorization.split(" ", 1)[1]
+    try:
+        decoded = await verify_firebase_token(token)
+    except ValueError as e:
+        raise HTTPException(401, str(e))
+
+    if not automation_agent._running:
+        await automation_agent.start()
+
+    bots = await logger_agent.db.get_all_bots()
+    for bot in bots:
+        if bot.id not in automation_agent._monitor_tasks:
+            await automation_agent.start_login_bot(bot.id)
+
+    logger.info(f"Bot activation triggered by firebase_uid={decoded.get('uid', 'unknown')}")
+    return {"status": "online", "automation_agent": True}
+
+
+@router.post("/api/stop-bot")
+async def api_stop_bot(authorization: str | None = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+        try:
+            await verify_firebase_token(token)
+        except ValueError:
+            pass  # allow unauthenticated stop as well
+
+    for bot_id in list(automation_agent._monitor_tasks.keys()):
+        await automation_agent.logout_bot(bot_id)
+
+    await automation_agent.stop()
+    logger.info("All bots stopped via /api/stop-bot")
+    return {"status": "offline", "automation_agent": False}
+
+
+@router.post("/api/restart-bot")
+async def api_restart_bot(authorization: str | None = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Missing or invalid Authorization header")
+
+    token = authorization.split(" ", 1)[1]
+    try:
+        await verify_firebase_token(token)
+    except ValueError as e:
+        raise HTTPException(401, str(e))
+
+    bots = await logger_agent.db.get_all_bots()
+    for bot in bots:
+        if bot.id in automation_agent._monitor_tasks:
+            await automation_agent.restart_bot(bot.id)
+        else:
+            await automation_agent.start_login_bot(bot.id)
+
+    logger.info("Bot restart triggered")
+    return {"status": "online", "automation_agent": True}
+
+
 # ─── Firebase Auth ───────────────────────────────────────────────
 
 @router.post("/api/auth/firebase")
@@ -332,7 +407,22 @@ async def firebase_auth(req: FirebaseAuthRequest):
     except ValueError as e:
         raise HTTPException(401, str(e))
 
-    firebase_uid = decoded["uid"]
+    print("[firebase_auth] Decoded token payload:", decoded)
+
+    firebase_uid = None
+    for key in ("uid", "user_id", "sub"):
+        if key in decoded:
+            firebase_uid = decoded[key]
+            break
+
+    if not firebase_uid:
+        raise HTTPException(
+            401,
+            "Invalid Firebase token structure: none of ['uid', 'user_id', 'sub'] found in decoded payload",
+        )
+
+    logger.info(f"[firebase_auth] Extracted user ID '{firebase_uid}' from key '{key}'")
+
     email = decoded.get("email", "")
     name = decoded.get("name", "")
     picture = decoded.get("picture", "")

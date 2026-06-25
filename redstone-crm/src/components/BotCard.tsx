@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bot, BotStatus } from "../lib/types";
 import { cn } from "../lib/cn";
 
@@ -22,6 +22,13 @@ const STATUS_CONFIG: Record<
     dot: "bg-signal",
     text: "text-signal",
     ring: "border-signal/30 bg-signal/10",
+    pulse: true,
+  },
+  online: {
+    label: "Online",
+    dot: "bg-sky-400",
+    text: "text-sky-400",
+    ring: "border-sky-400/30 bg-sky-400/10",
     pulse: true,
   },
   offline: {
@@ -52,25 +59,72 @@ export default function BotCard({
     "login" | "logout" | "restart" | null
   >(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [localStatus, setLocalStatus] = useState<BotStatus | null>(null);
 
-  const status = STATUS_CONFIG[bot.status];
-  const isOffline = bot.status === "offline";
-  const isRestarting = bot.status === "restarting";
+  const effectiveStatus = localStatus ?? bot.status;
 
-  console.log(`[BotCard] ${bot.name} rendered — status="${bot.status}" isOffline=${isOffline}`);
+  useEffect(() => {
+    if (effectiveStatus !== "online") return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/bots/${bot.id}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.vicidial_status && data.vicidial_status.toUpperCase().includes("READY")) {
+          setLocalStatus("active");
+        }
+      } catch {
+        // network errors ignored during polling
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [effectiveStatus, bot.id]);
+  const status = STATUS_CONFIG[effectiveStatus];
+  const isOffline = effectiveStatus === "offline";
+  const isRestarting = effectiveStatus === "restarting";
+
+  async function handleLoginClick() {
+    if (pendingAction) return;
+    setPendingAction("login");
+    setLoginError(null);
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: bot.id }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          detail = body.detail || body.error || detail;
+        } catch {
+          const text = await res.text().catch(() => "");
+          if (text) detail = text;
+        }
+        throw new Error(detail);
+      }
+      setLocalStatus("online");
+      if (onLogin) {
+        await onLogin(bot.id);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setLoginError(msg);
+    } finally {
+      setPendingAction(null);
+    }
+  }
 
   async function handleAction(
     action: "login" | "logout" | "restart",
     handler?: (botId: string) => void
   ) {
-    console.log(`[BotCard] handleAction — action=${action} hasHandler=${Boolean(handler)} pendingAction=${pendingAction}`);
-    if (!handler || pendingAction) {
-      console.log(`[BotCard] returning early — ${!handler ? "no handler" : "blocked by pendingAction"}`);
-      return;
-    }
+    if (!handler || pendingAction) return;
+    setLocalStatus(null);
     setPendingAction(action);
     try {
-      console.log(`[BotCard] calling handler for ${bot.id}`);
       await handler(bot.id);
     } finally {
       setPendingAction(null);
@@ -114,14 +168,11 @@ export default function BotCard({
       <div className="mt-5 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            console.log(`[BotCard] ⭐ LOGIN BUTTON RAW CLICK — ${bot.name}`);
-            handleAction("login", onLogin);
-          }}
+          onClick={handleLoginClick}
           disabled={!isOffline || pendingAction !== null}
           className="flex-1 rounded-md bg-signal/15 px-3 py-2 text-xs font-medium text-signal transition-colors hover:bg-signal/25 disabled:cursor-not-allowed disabled:bg-panel-raised disabled:text-text-tertiary"
         >
-          {pendingAction === "login" ? "Logging in…" : "Login"}
+          {pendingAction === "login" ? "Logging in\u2026" : "Login"}
         </button>
         <button
           type="button"
@@ -129,7 +180,7 @@ export default function BotCard({
           disabled={isOffline || pendingAction !== null}
           className="flex-1 rounded-md border border-border-soft px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:cursor-not-allowed disabled:text-text-tertiary"
         >
-          {pendingAction === "logout" ? "Logging out…" : "Logout"}
+          {pendingAction === "logout" ? "Logging out\u2026" : "Logout"}
         </button>
         <button
           type="button"
@@ -137,9 +188,15 @@ export default function BotCard({
           disabled={isOffline || isRestarting || pendingAction !== null}
           className="flex-1 rounded-md border border-border-soft px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:cursor-not-allowed disabled:text-text-tertiary"
         >
-          {pendingAction === "restart" ? "Restarting…" : "Restart"}
+          {pendingAction === "restart" ? "Restarting\u2026" : "Restart"}
         </button>
       </div>
+
+      {loginError && (
+        <div className="mt-3 rounded-md border border-red/30 bg-red-dim/10 px-3 py-2 text-xs text-red">
+          <span className="font-medium">Login failed:</span> {loginError}
+        </div>
+      )}
 
       {(onEdit || onDelete) && (
         <div className="mt-3 flex items-center justify-between border-t border-border-soft pt-3">
@@ -190,5 +247,3 @@ export default function BotCard({
     </div>
   );
 }
-
-

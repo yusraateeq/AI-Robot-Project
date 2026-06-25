@@ -1,4 +1,5 @@
 const BASE = "/api";
+const BASE_URL = "http://localhost:3002";
 
 export interface LoginResponse {
   token: string;
@@ -88,6 +89,22 @@ export async function updateProfile(data: Partial<Profile>): Promise<Profile> {
   });
   if (!res.ok) throw new Error("Failed to update profile");
   return res.json();
+}
+
+export interface Bot {
+  id: string;
+  name: string;
+  campaign: string;
+  status: string;
+  callsToday: number;
+  active: boolean;
+}
+
+export async function fetchBots(): Promise<Bot[]> {
+  const res = await fetch(`${BASE_URL}/api/bots`);
+  if (!res.ok) throw new Error("Failed to fetch bots");
+  const data = await res.json();
+  return data.bots ?? data;
 }
 
 // ─── Bot actions ──────────────────────────────────────────────

@@ -26,11 +26,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const router = useRouter();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!auth);
   const mountedRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
+    if (!auth) return () => { mountedRef.current = false; };
     const unsub = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       setLoading(false);

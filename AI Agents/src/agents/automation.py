@@ -29,6 +29,7 @@ class AutomationAgent:
         self._login_tasks: dict[str, asyncio.Task] = {}
         self._login_statuses: dict[str, str] = {}
         self._login_errors: dict[str, str] = {}
+        self.bot_statuses: dict[str, str] = {}
 
     async def start(self):
         self._running = True
@@ -43,6 +44,7 @@ class AutomationAgent:
         for bid in list(self._login_tasks.keys()):
             self._login_tasks[bid].cancel()
         self._login_tasks.clear()
+        self.bot_statuses.clear()
         if self._poll_task:
             self._poll_task.cancel()
         await self.vicidial.disconnect_all()
@@ -64,6 +66,7 @@ class AutomationAgent:
     async def start_login_bot(self, bot_id: str):
         if bot_id in self._login_tasks:
             return
+        self.bot_statuses[bot_id] = "online"
         self._login_statuses[bot_id] = "pending"
         self._login_errors.pop(bot_id, None)
         task = asyncio.create_task(self._login_worker(bot_id))
@@ -97,6 +100,7 @@ class AutomationAgent:
         return result
 
     async def logout_bot(self, bot_id: str):
+        self.bot_statuses.pop(bot_id, None)
         self._stop_monitoring(bot_id)
         self._stop_call_handler(bot_id)
         await self.vicidial.logout(bot_id)
@@ -166,6 +170,7 @@ class AutomationAgent:
                         self._start_call_handler(bot_id)
 
                     elif "READY" in status_upper:
+                        self.bot_statuses[bot_id] = "active"
                         diag_cycles = 1
                         self._stop_call_handler(bot_id)
 

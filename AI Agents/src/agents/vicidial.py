@@ -140,23 +140,85 @@ class VICIdialController:
     def _dismiss_ok_popup(page) -> bool:
         import time as _time
 
+        SELECTORS = (
+            '//a[contains(text(), "OK")] | '
+            '//span[contains(text(), "OK")] | '
+            '//button[contains(text(), "OK")] | '
+            '//input[@value="OK"] | '
+            '//div[contains(text(), "OK")] | '
+            '//*[@id="OK"] | '
+            '//*[contains(@class, "ok") and contains(text(), "OK")]'
+        )
+
+        def _popup_visible() -> bool:
+            for f in page.frames:
+                try:
+                    btn = f.locator(SELECTORS)
+                    if btn.count() > 0 and btn.first.is_visible():
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        def _click_standard(f) -> bool:
+            btn = f.locator(SELECTORS)
+            if btn.count() == 0 or not btn.first.is_visible():
+                return False
+            btn.first.click(force=True, timeout=5000)
+            return True
+
+        def _click_js(f) -> bool:
+            btn = f.locator(SELECTORS)
+            if btn.count() == 0 or not btn.first.is_visible():
+                return False
+            btn.first.evaluate("el => el.click()")
+            return True
+
+        # ── Phase 1: Standard Playwright click (3 attempts) ──────────
         for attempt in range(3):
             for f in page.frames:
                 try:
-                    ok_btn = f.locator(
-                        '//a[contains(text(), "OK")] | '
-                        '//span[contains(text(), "OK")] | '
-                        '//button[contains(text(), "OK")] | '
-                        '//input[@value="OK"]'
-                    )
-                    if ok_btn.count() > 0 and ok_btn.first.is_visible():
-                        logger.info("Dismissing OK confirmation popup")
-                        ok_btn.first.click(force=True, timeout=5000)
-                        _time.sleep(2)
+                    if not _popup_visible():
+                        return True
+                    logger.info(f"OK popup — standard click attempt {attempt + 1}/3")
+                    _click_standard(f)
+                    _time.sleep(2)
+                    if not _popup_visible():
+                        logger.info("OK popup dismissed via standard click")
                         return True
                 except Exception:
                     continue
             _time.sleep(1)
+
+        # ── Phase 2: JavaScript click fallback (2 attempts) ──────────
+        for attempt in range(2):
+            for f in page.frames:
+                try:
+                    if not _popup_visible():
+                        return True
+                    logger.info(f"OK popup — JS click attempt {attempt + 1}/2")
+                    _click_js(f)
+                    _time.sleep(2)
+                    if not _popup_visible():
+                        logger.info("OK popup dismissed via JS click")
+                        return True
+                except Exception:
+                    continue
+            _time.sleep(1)
+
+        # ── Phase 3: Page refresh to clear stale session lock ───────
+        logger.warning("OK popup not dismissed by click — performing page refresh")
+        try:
+            page.reload(timeout=90000)
+            page.wait_for_load_state("domcontentloaded")
+            _time.sleep(3)
+            if not _popup_visible():
+                logger.info("OK popup cleared after page refresh")
+                return True
+            logger.warning("OK popup still visible after page refresh")
+        except Exception as e:
+            logger.error(f"Page refresh failed: {e}")
+
         return False
 
     @staticmethod
@@ -545,6 +607,48 @@ class VICIdialController:
                 page.wait_for_load_state("domcontentloaded")
                 logger.info("Campaign login submitted")
 
+                def _reenter_campaign_login():
+                    """Re-fill campaign login fields after a page reload."""
+                    f_phone = VICIdialController._find_frame_with(
+                        page, 'input[name="phone_login"]', timeout=10000
+                    )
+                    if f_phone is not None:
+                        f_phone.locator('input[name="phone_login"]').fill(
+                            settings.phone_ext
+                        )
+                        f_phone.locator('input[name="phone_pass"]').fill(
+                            settings.phone_pass
+                        )
+                        f_phone.locator(
+                            'input[type="submit"], button[type="submit"], '
+                            'input[value="Submit"], input[value="Login"]'
+                        ).click(timeout=5000, no_wait_after=True)
+                        page.wait_for_load_state("domcontentloaded")
+                        logger.info("Phone login re-entered after refresh")
+
+                    nf = VICIdialController._find_frame_with(
+                        page,
+                        'input[name="VD_login"], select[name="VD_campaign"]',
+                        timeout=15000,
+                    )
+                    if nf is not None:
+                        nf.locator('input[name="VD_login"]').fill(
+                            settings.vicidial_user
+                        )
+                        nf.locator('input[name="VD_pass"]').fill(
+                            settings.vicidial_pass
+                        )
+                        nf.locator(
+                            'select[name="VD_campaign"]'
+                        ).select_option(settings.vicidial_campaign)
+                        nf.locator(
+                            'input[id="login_sub"], input[name="login_sub"]'
+                        ).click(timeout=5000, no_wait_after=True)
+                        page.wait_for_load_state("domcontentloaded")
+                        logger.info("Campaign login re-entered after refresh")
+                        return nf
+                    return None
+
                 _time.sleep(2)
                 conflict_handled = self._handle_session_conflict(page)
                 if not conflict_handled:
@@ -559,8 +663,21 @@ class VICIdialController:
                         ".style.display = 'none')"
                     )
 
-                VICIdialController._dismiss_ok_popup(page)
-                VICIdialController._click_ready_button(page)
+                for _retry in range(2):
+                    dismissed = VICIdialController._dismiss_ok_popup(page)
+                    VICIdialController._click_ready_button(page)
+
+                    if dismissed:
+                        break
+
+                    logger.warning(
+                        f"OK popup not dismissed (retry {_retry + 1}) "
+                        f"— reloading and re-entering credentials"
+                    )
+                    _retry_nav(lambda: page.reload(timeout=90000))
+                    page.wait_for_load_state("domcontentloaded")
+                    _reenter_campaign_login()
+                    _time.sleep(2)
 
                 return p, browser, page
 

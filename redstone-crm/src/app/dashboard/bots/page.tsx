@@ -6,7 +6,7 @@ import Navbar from "@/src/components/Navbar";
 import BotCard from "@/src/components/BotCard";
 import BotFormModal from "@/src/components/BotFormModal";
 import { Bot } from "@/src/lib/types";
-import { addBot, deleteBot, fetchBotStatuses, loginBot, loginBotPoll, logoutBot, restartBot, type BotStatusInfo } from "@/src/lib/api";
+import { addBot, deleteBot, fetchBotStatuses, logoutBot, restartBot, type BotStatusInfo } from "@/src/lib/api";
 import type { BotStatus } from "@/src/lib/types";
 
 export default function BotsPage() {
@@ -16,7 +16,7 @@ export default function BotsPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const activeCount = bots.filter((b) => b.status === "active").length;
+  const activeCount = bots.filter((b) => b.status === "active" || b.status === "online").length;
   const modalOpen = isAdding || editingBot !== null;
 
   const fetchBotsData = useCallback(async (): Promise<Bot[]> => {
@@ -24,6 +24,7 @@ export default function BotsPage() {
     return data.map((b: BotStatusInfo) => {
       let status: BotStatus = "offline";
       if (b.status === "restarting") status = "restarting";
+      else if (b.status === "online") status = "online";
       else if (b.status === "active" || b.active) status = "active";
       return { id: b.id, name: b.name, campaign: b.campaign, status, callsToday: b.callsToday ?? 0 };
     });
@@ -121,12 +122,9 @@ export default function BotsPage() {
                 bot={bot}
                 onLogin={async (id) => {
                   try {
-                    await loginBot(id);
-                    await loginBotPoll(id);
                     setBots(await fetchBotsData());
-                  } catch (e: unknown) {
-                    const msg = e instanceof Error ? e.message : "Login failed";
-                    alert(`Login failed for ${id}: ${msg}`);
+                  } catch {
+                    // parent's 3-second polling handles sync
                   }
                 }}
                 onLogout={async (id) => {

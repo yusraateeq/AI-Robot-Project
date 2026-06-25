@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AuthProvider from "@/src/components/AuthProvider";
 
+console.log("[Layout] RootLayout rendering — entry point reached");
+
 export const metadata: Metadata = {
   title: "Redstone AI Voice Bot CRM",
   description: "AI voice bot CRM with VICIdial integration",
